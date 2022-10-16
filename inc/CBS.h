@@ -43,7 +43,7 @@ public:
 	HLNode* dummy_start = nullptr;
 	HLNode* goal_node = nullptr;
 
-
+	vector<Path*> paths;
 
 	bool solution_found = false;
 	int solution_cost = -2;
@@ -132,7 +132,6 @@ protected:
 	int num_of_agents;
 
 
-	vector<Path*> paths;
 	vector<Path> paths_found_initially;  // contain initial paths found
 	// vector<MDD*> mdds_initially;  // contain initial paths found
 	vector < SingleAgentSolver* > search_engines;  // used to find (single) agents' paths and mdd
