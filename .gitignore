@@ -1,2 +1,7 @@
-.idea
-cmake-*
+*.idea
+cmake*
+CMake*
+Makefile
+*.csv
+paths.txt
+eecbs
