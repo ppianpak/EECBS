@@ -24,7 +24,7 @@ int CorridorReasoning::findCorridor(const shared_ptr<Conflict>& conflict,
 	tie(agent, loc2, loc1, t, type) = conflict->constraint1.back();
 	if (t < 1)
 		return 0;
-	if (loc1 < 0) // vertex conflcit
+	if (loc1 < 0) // vertex conflict
 	{
 		if (search_engines[0]->instance.getDegree(loc2) != 2)
 			return 0; // not a corridor 
@@ -69,7 +69,7 @@ int CorridorReasoning::findCorridor(const shared_ptr<Conflict>& conflict,
 			}
 		}
 		else // exit the corridor without hitting endpoint2
-		{ // indicating that the two agents mvoe in the same direction
+		{ // indicating that the two agents move in the same direction
 			return 0;
 		}
 		corridor_length++;
@@ -135,13 +135,13 @@ shared_ptr<Conflict> CorridorReasoning::findCorridorConflict(const shared_ptr<Co
 	int corridor_length = getCorridorLength(*paths[a[0]], t[0], u[1], edge);
 	int t3, t3_, t4, t4_;
 	ConstraintTable ct1(initial_constraints[conflict->a1]);
-	ct1.build(node, conflict->a1);
+    ct1.insert2CT(node, conflict->a1);
 	t3 = search_engines[conflict->a1]->getTravelTime(paths[conflict->a1]->front().location, u[1], ct1, MAX_TIMESTEP);
 	ct1.insert2CT(edge.first, edge.second, 0, MAX_TIMESTEP); // block the corridor in both directions
 	ct1.insert2CT(edge.second, edge.first, 0, MAX_TIMESTEP);
 	t3_ = search_engines[conflict->a1]->getTravelTime(paths[conflict->a1]->front().location, u[1], ct1, t3 + 2 * corridor_length + 1);
 	ConstraintTable ct2(initial_constraints[conflict->a2]);
-	ct2.build(node, conflict->a2);
+    ct2.insert2CT(node, conflict->a2);
 	t4 = search_engines[conflict->a2]->getTravelTime(paths[conflict->a2]->front().location, u[0], ct2, MAX_TIMESTEP);
 	ct2.insert2CT(edge.first, edge.second, 0, MAX_TIMESTEP); // block the corridor in both directions
 	ct2.insert2CT(edge.second, edge.first, 0, MAX_TIMESTEP);
@@ -207,7 +207,7 @@ int CorridorReasoning::getCorridorLength(const vector<PathEntry>& path, int t_st
 		next = path[t].location;
 		if (next == curr) // wait
 			continue;
-		else if (next == prev) // turn aournd
+		else if (next == prev) // turn around
 			moveForward = !moveForward;
 		if (moveForward)
 		{
@@ -235,7 +235,7 @@ int CorridorReasoning::getCorridorLength(const vector<PathEntry>& path, int t_st
 	// boost::heap::pairing_heap< AStarNode*, boost::heap::compare<AStarNode::compare_node> >::handle_type open_handle;
 	unordered_set<AStarNode*, AStarNode::NodeHasher, AStarNode::eqnode> nodes;
 
-	auto root = new AStarNode(start, 0, getMahattanDistance(start, end, num_col), nullptr, 0);
+	auto root = new AStarNode(start, 0, getManhattanDistance(start, end, num_col), nullptr, 0);
 	root->open_handle = heap.push(root);  // add root to heap
 	nodes.insert(root);       // add root to hash_table (nodes)
 	int moves_offset[4] = { 1, -1, num_col, -num_col };
@@ -260,7 +260,7 @@ int CorridorReasoning::getCorridorLength(const vector<PathEntry>& path, int t_st
 					continue;
 				}
 				int next_g_val = curr->g_val + 1;
-				auto next = new LLNode(next_loc, next_g_val, getMahattanDistance(next_loc, end, num_col), nullptr, 0);
+				auto next = new LLNode(next_loc, next_g_val, getManhattanDistance(next_loc, end, num_col), nullptr, 0);
 				auto it = nodes.find(next);
 				if (it == nodes.end())
 				{  // add the newly generated node to heap and hash table

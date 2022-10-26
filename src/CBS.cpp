@@ -76,11 +76,11 @@ void CBS::findConflicts(HLNode& curr, int a1, int a2)
 		if (loc1 == loc2)
 		{
 			shared_ptr<Conflict> conflict(new Conflict());
-			if (target_reasoning && paths[a1]->size() == timestep + 1)
+			if (target_reasoning and search_engines[a1]->goal_location >=0 and paths[a1]->size() == timestep + 1)
 			{
 				conflict->targetConflict(a1, a2, loc1, timestep);
 			}
-			else if (target_reasoning && paths[a2]->size() == timestep + 1)
+			else if (target_reasoning and search_engines[a2]->goal_location >=0 and  paths[a2]->size() == timestep + 1)
 			{
 				conflict->targetConflict(a2, a1, loc1, timestep);
 			}
@@ -114,7 +114,7 @@ void CBS::findConflicts(HLNode& curr, int a1, int a2)
 			if (loc1 == loc2)
 			{
 				shared_ptr<Conflict> conflict(new Conflict());
-				if (target_reasoning)
+				if (target_reasoning and search_engines[a1_]->goal_location >=0)
 					conflict->targetConflict(a1_, a2_, loc1, timestep);
 				else
 					conflict->vertexConflict(a1_, a2_, loc1, timestep);
@@ -205,7 +205,7 @@ shared_ptr<Conflict> CBS::chooseConflict(const HLNode &node) const
 void CBS::computeSecondPriorityForConflict(Conflict& conflict, const HLNode& node)
 {
 	int count[2] = {0, 0};
-	switch (conflict_seletion_rule)
+	switch (conflict_selection_rule)
 	{
 	case conflict_selection::RANDOM:
 		conflict.secondary_priority = 0;
@@ -249,29 +249,32 @@ void CBS::computeConflictPriority(shared_ptr<Conflict>& con, CBSNode& node)
 	constraint_type type = get<4>(con->constraint1.back());
 	bool cardinal1 = false, cardinal2 = false;
 	MDD *mdd1 = nullptr, *mdd2 = nullptr;
-	if (timestep >= (int)paths[a1]->size())
+	if (search_engines[a1]->goal_location < 0) // We assume that non-goal agents always have non-cardinal conflicts.
+        cardinal1 = false;
+    else if (timestep >= (int)paths[a1]->size())
 		cardinal1 = true;
-	else //if (!paths[a1]->at(0).is_single())
-	{
+	else
 		mdd1 = mdd_helper.getMDD(node, a1, paths[a1]->size());
-	}
-	if (timestep >= (int)paths[a2]->size())
+
+    if (search_engines[a2]->goal_location < 0) // We assume that non-goal agents always have non-cardinal conflicts.
+        cardinal2 = false;
+	else if (timestep >= (int)paths[a2]->size())
 		cardinal2 = true;
-	else //if (!paths[a2]->at(0).is_single())
-	{
+	else
 		mdd2 = mdd_helper.getMDD(node, a2, paths[a2]->size());
-	}
 
 	if (type == constraint_type::EDGE) // Edge conflict
 	{
-		cardinal1 = mdd1->levels[timestep].size() == 1 && mdd1->levels[timestep - 1].size() == 1;
-		cardinal2 = mdd2->levels[timestep].size() == 1 && mdd2->levels[timestep - 1].size() == 1;
+        if (mdd1 != nullptr)
+		    cardinal1 = mdd1->levels[timestep].size() == 1 && mdd1->levels[timestep - 1].size() == 1;
+		if (mdd2 != nullptr)
+            cardinal2 = mdd2->levels[timestep].size() == 1 && mdd2->levels[timestep - 1].size() == 1;
 	}
 	else // vertex conflict or target conflict
 	{
-		if (!cardinal1)
+		if (!cardinal1 and mdd1 != nullptr)
 			cardinal1 = mdd1->levels[timestep].size() == 1;
-		if (!cardinal2)
+		if (!cardinal2 and mdd2 != nullptr)
 			cardinal2 = mdd2->levels[timestep].size() == 1;
 	}
 
@@ -323,23 +326,6 @@ void CBS::classifyConflicts(CBSNode &node)
 			return;
 		}
 
-		// Mutex reasoning
-		if (mutex_reasoning)
-		{
-			// TODO mutex reasoning is per agent pair, don't do duplicated work...
-			auto mdd1 = mdd_helper.getMDD(node, a1, paths[a1]->size());
-			auto mdd2 = mdd_helper.getMDD(node, a2, paths[a2]->size());
-
-			auto mutex_conflict = mutex_helper.run(a1, a2, node, mdd1, mdd2);
-
-			if (mutex_conflict != nullptr)
-			{
-				computeSecondPriorityForConflict(*mutex_conflict, node);
-				node.conflicts.push_back(mutex_conflict);
-				continue;
-			}
-		}
-
 		// Target Reasoning
 		if (con->type == conflict_type::TARGET)
 		{
@@ -366,6 +352,8 @@ void CBS::classifyConflicts(CBSNode &node)
 		if (rectangle_reasoning &&
 			(int)paths[con->a1]->size() > timestep &&
 			(int)paths[con->a2]->size() > timestep && //conflict happens before both agents reach their goal locations
+            search_engines[con->a1]->goal_location >= 0 and
+            search_engines[con->a2]->goal_location >= 0 and // both agents have fixed goal locations
 			type == constraint_type::VERTEX) // vertex conflict
 		{
 			auto mdd1 = mdd_helper.getMDD(node, a1, paths[a1]->size());
@@ -378,6 +366,23 @@ void CBS::classifyConflicts(CBSNode &node)
 				continue;
 			}
 		}
+
+        // Mutex reasoning
+        if (mutex_reasoning)
+        {
+            // TODO mutex reasoning is per agent pair, don't do duplicated work...
+            auto mdd1 = mdd_helper.getMDD(node, a1, paths[a1]->size());
+            auto mdd2 = mdd_helper.getMDD(node, a2, paths[a2]->size());
+
+            auto mutex_conflict = mutex_helper.run(a1, a2, node, mdd1, mdd2);
+
+            if (mutex_conflict != nullptr)
+            {
+                computeSecondPriorityForConflict(*mutex_conflict, node);
+                node.conflicts.push_back(mutex_conflict);
+                continue;
+            }
+        }
 
 		computeSecondPriorityForConflict(*con, node);
 		node.conflicts.push_back(con);
@@ -809,7 +814,7 @@ CBSNode* CBS::selectNode()
 }
 
 
-set<int> CBS::getInvalidAgents(const list<Constraint>& constraints)  // return agents that violates the constraints
+set<int> CBS::getInvalidAgents(const list<Constraint>& constraints)  // return agents that violate the constraints
 {
 	set<int> agents;
 	int agent, x, y, t;
@@ -1316,7 +1321,7 @@ bool CBS::solve(double _time_limit, int _cost_lowerbound, int _cost_upperbound)
 					delete i;
 					i = nullptr;
 				}
-				if (PC) // priortize conflicts
+				if (PC) // prioritize conflicts
 					classifyConflicts(*curr);
 			}
 			else
@@ -1488,8 +1493,6 @@ CBS::CBS(const Instance& instance, bool sipp, int screen) :
 			search_engines[i] = new SIPP(instance, i);
 		else
 			search_engines[i] = new SpaceTimeAStar(instance, i);
-
-		initial_constraints[i].goal_location = search_engines[i]->goal_location;
 	}
 	runtime_preprocessing = (double)(clock() - t) / CLOCKS_PER_SEC;
 
@@ -1502,7 +1505,7 @@ CBS::CBS(const Instance& instance, bool sipp, int screen) :
 }
 
 
-//generate random permuattion of agent indices
+//generate random permutation of agent indices
 vector<int> CBS::shuffleAgents() const
 {
 	vector<int> agents(num_of_agents);
@@ -1534,7 +1537,7 @@ bool CBS::generateRoot()
 	{
 		paths_found_initially.resize(num_of_agents);
 
-		//generate random permuattion of agent indices
+		//generate random permutation of agent indices
 		vector<int> agents(num_of_agents);
 		for (int i = 0; i < num_of_agents; i++)
 		{
